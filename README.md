@@ -159,3 +159,10 @@ OLX.co.id
 - Pastikan menjalankan script **sesuai urutan** (scraping → processing → training → testing).
 - File `model_prediksi_mobil.pkl` sudah tersedia di repository sehingga Anda bisa langsung menjalankan `test_prediksi.py` tanpa perlu scraping ulang.
 - Jika ingin memperbarui data, jalankan ulang dari langkah 1.
+
+---
+
+## ⚠️ Disclaimer
+
+Dataset yang digunakan dalam proyek ini diperoleh melalui web scraping dari OLX Indonesia semata-mata untuk keperluan **akademis dan edukasi**.
+Proyek ini tidak berafiliasi dengan OLX dan tidak digunakan untuk tujuan komersial.
