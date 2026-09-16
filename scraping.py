@@ -38,6 +38,12 @@ async def scrape_olx(target_data=600):
                                     "merek": param_dict.get("make", "Lainnya"),
                                     "model": param_dict.get("model", "Lainnya"),
                                     "tahun": param_dict.get("year"),
+                                    # OLX tidak selalu menyertakan key "transmission" di dalam
+                                    # response API-nya (tergantung kelengkapan data penjual).
+                                    # Jika tidak ada, nilai default "Lainnya" digunakan di sini.
+                                    # Nilai ini akan diperbaiki secara otomatis di tahap preprocessing
+                                    # (processing.py) dengan mendeteksi kata kunci transmisi
+                                    # (matic, at, manual, mt, dll.) dari teks kolom 'judul' iklan.
                                     "transmisi": param_dict.get("transmission", "Lainnya"),
                                     "jarak_tempuh": param_dict.get("mileage"),
                                     "harga": item.get("price", {}).get("value", {}).get("raw")
@@ -98,3 +104,6 @@ if __name__ == "__main__":
         df.to_csv("dataset_olx_mentah.csv", index=False, encoding="utf-8-sig")
         print(f"\nSelesai! Berhasil menyimpan {len(df)} baris ke 'dataset_olx_mentah.csv'")
         print(df[["judul", "merek", "tahun", "transmisi", "harga"]].head())
+        print("\n[INFO] Kolom 'transmisi' kemungkinan besar berisi 'Lainnya' — ini normal.")
+        print("[INFO] OLX tidak selalu menyertakan data transmisi di response API-nya.")
+        print("[INFO] Nilai transmisi akan dideteksi otomatis dari teks judul saat menjalankan processing.py.")
