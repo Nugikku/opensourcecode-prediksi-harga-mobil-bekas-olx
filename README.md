@@ -53,7 +53,7 @@ python scraping.py
 Kolom yang dikumpulkan:
 - `id_iklan`, `judul`, `deskripsi`, `merek`, `model`, `tahun`, `transmisi`, `jarak_tempuh`, `harga`
 
-> **Catatan:** Target default adalah **600 data**. Pastikan koneksi internet stabil saat menjalankan script ini.
+> **Catatan:** Target default adalah **3000 data**. Pastikan koneksi internet stabil saat menjalankan script ini.
 
 ---
 
