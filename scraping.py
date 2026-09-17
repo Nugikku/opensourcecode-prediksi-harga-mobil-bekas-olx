@@ -3,7 +3,7 @@ from playwright.async_api import async_playwright
 import pandas as pd
 import re
 
-async def scrape_olx(target_data=600):
+async def scrape_olx(target_data=3000):
     all_cars = []
     
     async with async_playwright() as p:
@@ -25,12 +25,21 @@ async def scrape_olx(target_data=600):
                     if isinstance(res_json, dict) and "data" in res_json and isinstance(res_json["data"], list):
                         items = res_json.get("data", [])
                         for item in items:
-                            # Ciri-ciri iklan mobil asli di OLX: punya atribut 'parameters' dan 'price'
-                            if "parameters" in item and "price" in item:
-                                param_dict = {}
-                                for param in item.get("parameters", []):
-                                    param_dict[param.get("key")] = param.get("value_name", param.get("value"))
-                                
+                            # Filter ketat: Pastikan iklan khusus kategori Mobil Bekas (category_id 198)
+                            cat_id = str(item.get("category_id", ""))
+                            param_dict = {}
+                            for param in item.get("parameters", []):
+                                param_dict[param.get("key")] = param.get("value_name", param.get("value"))
+
+                            # Ciri-ciri iklan mobil asli: Memiliki category_id '198' atau memiliki parameter 'make' & 'year'
+                            is_car = (cat_id == "198") or ("make" in param_dict and "year" in param_dict)
+                            
+                            # Filter tambahan: Eliminasi merek non-mobil (seperti Apple, Samsung, dll.)
+                            merek_non_mobil = ["apple", "samsung", "xiaomi", "oppo", "vivo", "realme", "asus", "lenovo"]
+                            if param_dict.get("make", "").lower() in merek_non_mobil:
+                                is_car = False
+
+                            if "parameters" in item and "price" in item and is_car:
                                 car = {
                                     "id_iklan": item.get("id"),
                                     "judul": item.get("title"),
@@ -54,38 +63,69 @@ async def scrape_olx(target_data=600):
                 except Exception:
                     pass
 
+        # Daftar URL berbagai wilayah untuk melewati batas ~500 data per 1 halaman OLX
+        urls = [
+            "https://www.olx.co.id/mobil-bekas_c198",
+            "https://www.olx.co.id/jakarta-dki_g2000007/mobil-bekas_c198",
+            "https://www.olx.co.id/jawa-barat_g2000008/mobil-bekas_c198",
+            "https://www.olx.co.id/jawa-timur_g2000010/mobil-bekas_c198",
+            "https://www.olx.co.id/jawa-tengah_g2000009/mobil-bekas_c198",
+            "https://www.olx.co.id/banten_g2000003/mobil-bekas_c198",
+            "https://www.olx.co.id/sumatera-utara_g2000022/mobil-bekas_c198",
+            "https://www.olx.co.id/bali_g2000002/mobil-bekas_c198",
+            "https://www.olx.co.id/yogyakarta-di_g2000033/mobil-bekas_c198",
+            "https://www.olx.co.id/sulawesi-selatan_g2000025/mobil-bekas_c198"
+        ]
+
         page.on("response", tangkap_response)
 
-        print("Membuka halaman OLX Mobil Bekas...")
-        await page.goto("https://www.olx.co.id/mobil-bekas_c198", wait_until="domcontentloaded")
-        await asyncio.sleep(5)  # Beri waktu elemen halaman agar termuat sempurna
+        for idx, target_url in enumerate(urls, 1):
+            if len(all_cars) >= target_data:
+                print(f"Target {target_data} data tercapai!")
+                break
 
-        # Loop scrolling menggunakan tombol keyboard (lebih stabil)
-        percobaan_kosong = 0
-        while len(all_cars) < target_data and percobaan_kosong < 10:
-            jumlah_sebelum = len(all_cars)
-            
-            # Tekan tombol 'Page Down' berkali-kali untuk meniru manusia membaca
-            for _ in range(6):
-                await page.keyboard.press("PageDown")
+            print(f"\n[{idx}/{len(urls)}] Membuka URL: {target_url}")
+            try:
+                await page.goto(target_url, wait_until="domcontentloaded")
+                await asyncio.sleep(4)
+            except Exception as err:
+                print(f"Gagal membuka URL: {err}")
+                continue
+
+            percobaan_kosong = 0
+            while len(all_cars) < target_data and percobaan_kosong < 8:
+                jumlah_sebelum = len(all_cars)
+                
+                # 1. Scroll bertahap ke bawah
+                for _ in range(4):
+                    await page.evaluate("window.scrollBy(0, 1000);")
+                    await asyncio.sleep(1.0)
+                
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight);")
                 await asyncio.sleep(1.5)
 
-            # Cari dan klik tombol "Muat lainnya" / "Load more"
-            try:
-                tombol = page.locator("button", has_text=re.compile(r"muat|load", re.IGNORECASE)).first
-                if await tombol.is_visible():
-                    await tombol.click()
-                    await asyncio.sleep(3)
-            except Exception:
-                pass
+                # 2. Cari & klik tombol "Muat lainnya"
+                try:
+                    tombol = page.locator('button[data-aut-id="btnLoadMore"], button:has-text("Muat lainnya"), button:has-text("Load more")').first
+                    if await tombol.count() > 0 and await tombol.is_visible():
+                        await tombol.scroll_into_view_if_needed()
+                        await tombol.click(force=True)
+                        print("--> Klik 'Muat lainnya'...")
+                        await asyncio.sleep(3.0)
+                except Exception:
+                    pass
 
-            print(f"Terkumpul: {len(all_cars)} data mobil...")
+                print(f"Total Terkumpul: {len(all_cars)} / {target_data} data mobil...")
 
-            # Evaluasi apakah ada data baru yang masuk
-            if len(all_cars) == jumlah_sebelum:
-                percobaan_kosong += 1
-            else:
-                percobaan_kosong = 0
+                if len(all_cars) == jumlah_sebelum:
+                    percobaan_kosong += 1
+                    if percobaan_kosong % 2 == 0:
+                        await page.evaluate("window.scrollBy(0, -1200);")
+                        await asyncio.sleep(1.0)
+                        await page.evaluate("window.scrollTo(0, document.body.scrollHeight);")
+                        await asyncio.sleep(1.5)
+                else:
+                    percobaan_kosong = 0
 
         await browser.close()
 
@@ -93,7 +133,7 @@ async def scrape_olx(target_data=600):
 
 if __name__ == "__main__":
     print("Memulai scraping OLX via Browser...")
-    hasil = asyncio.run(scrape_olx(target_data=600))
+    hasil = asyncio.run(scrape_olx(target_data=3000))
     
     if not hasil:
         print("\nData masih kosong. Sistem keamanan OLX mungkin sedang sangat ketat di IP jaringan Anda.")
