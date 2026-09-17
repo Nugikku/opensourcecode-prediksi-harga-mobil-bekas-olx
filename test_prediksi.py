@@ -74,18 +74,89 @@ with open("model_prediksi_mobil.pkl", "rb") as f:
     model = pickle.load(f)
 
 # ============================================================
-# 4. INPUT INTERAKTIF DARI PENGGUNA
+# 4. INPUT INTERAKTIF PENGGUNA (DYNAMIC MENU BERDASARKAN DATA)
 # ============================================================
 print("=" * 50)
 print("     FORM PREDIKSI HARGA MOBIL BEKAS (INPUT USER)     ")
 print("=" * 50)
 
-merek_input = input("Masukkan Merek Mobil (misal: Suzuki, Toyota): ").strip().title()
-model_input = input("Masukkan Tipe/Model (misal: Every, Innova, Lainnya): ").strip().title()
-tahun_input = int(input("Masukkan Tahun Pembuatan (misal: 2004, 2020): ").strip())
-transmisi_input = input("Masukkan Transmisi (manual / otomatis): ").strip().lower()
-km_input = int(input("Masukkan Jarak Tempuh / KM (misal: 45000): ").strip())
+# 1. Bentuk daftar mapping Merek -> Model riil dari dataset
+df_temp = pd.read_csv("dataset_olx_bersih.csv")
+df_temp['model'] = df_temp['judul'].apply(ekstrak_model)
+df_temp['merek'] = df_temp['merek'].astype(str).str.strip().str.title()
 
+# Buat dictionary otomatis dari data
+daftar_merek = sorted(df_temp['merek'].unique())
+
+# --- PILIH MEREK ---
+print("Pilih Merek Mobil:")
+for i, mrk in enumerate(daftar_merek, 1):
+    print(f"[{i}] {mrk}", end="\t" if i % 4 != 0 else "\n")
+print()
+
+while True:
+    try:
+        pilihan_merek = int(input(f"Pilih nomor merek (1-{len(daftar_merek)}): ").strip())
+        if 1 <= pilihan_merek <= len(daftar_merek):
+            merek_input = daftar_merek[pilihan_merek - 1]
+            break
+        print("[!] Nomor pilihan tidak tersedia.")
+    except ValueError:
+        print("[!] Masukkan angka pilihan yang valid.")
+
+# --- PILIH TIPE / MODEL (OTOMATIS SESUAI MEREK TERPILIH) ---
+model_tersedia = sorted(df_temp[df_temp['merek'] == merek_input]['model'].unique())
+if 'Lainnya' in model_tersedia:
+    model_tersedia.remove('Lainnya')
+model_tersedia.append('Lainnya')
+
+print(f"\nPilihan Model/Seri untuk {merek_input}:")
+for j, mdl in enumerate(model_tersedia, 1):
+    print(f"[{j}] {mdl}", end="\t" if j % 4 != 0 else "\n")
+print()
+
+while True:
+    try:
+        pilihan_model = int(input(f"Pilih nomor model (1-{len(model_tersedia)}): ").strip())
+        if 1 <= pilihan_model <= len(model_tersedia):
+            model_input = model_tersedia[pilihan_model - 1]
+            break
+        print("[!] Nomor model tidak tersedia.")
+    except ValueError:
+        print("[!] Masukkan angka pilihan yang valid.")
+
+# --- INPUT ATRIBUT LAINNYA ---
+print(f"\nUnit Terpilih: {merek_input} {model_input}")
+
+while True:
+    try:
+        tahun_input = int(input("Masukkan Tahun Pembuatan (2000 - 2026): ").strip())
+        if 2000 <= tahun_input <= 2026:
+            break
+        print("[!] Tahun harus antara 2000 dan 2026.")
+    except ValueError:
+        print("[!] Masukkan angka tahun yang valid.")
+
+while True:
+    transmisi_input = input("Masukkan Transmisi (1. otomatis / 2. manual): ").strip()
+    if transmisi_input in ['1', 'otomatis']:
+        transmisi_input = 'otomatis'
+        break
+    elif transmisi_input in ['2', 'manual']:
+        transmisi_input = 'manual'
+        break
+    print("[!] Ketik 1 untuk otomatis atau 2 untuk manual.")
+
+while True:
+    try:
+        km_input = int(input("Masukkan Jarak Tempuh / KM (0 - 500000): ").strip())
+        if 0 <= km_input <= 500000:
+            break
+        print("[!] Kilometer harus antara 0 sampai 500.000 km.")
+    except ValueError:
+        print("[!] Masukkan angka kilometer yang valid.")
+
+# --- EKSEKUSI PREDIKSI ---
 data_user = pd.DataFrame([{
     'merek': merek_input,
     'model': model_input,
@@ -97,8 +168,8 @@ data_user = pd.DataFrame([{
 prediksi_user = model.predict(data_user)[0]
 
 print("\n--- HASIL PREDIKSI INPUT USER ---")
-print(f"Unit           : {merek_input} {model_input}")
-print(f"- Input Model  : {merek_input} {model_input} | {tahun_input} | {transmisi_input} | {km_input:,} km")
+print(f"Unit            : {merek_input} {model_input}")
+print(f"- Input Model   : {merek_input} {model_input} | {tahun_input} | {transmisi_input} | {km_input:,} km")
 print(f"- Prediksi Model: Rp {int(prediksi_user):,}")
 print("=" * 50 + "\n")
 
